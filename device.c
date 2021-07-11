@@ -160,6 +160,7 @@ static int vcam_try_fmt_vid_cap(struct file *file,
 
     if (dev->conv_res_on) {
         int n_avail = ARRAY_SIZE(vcam_sizes);
+        struct proc_dir_entry *new_pde;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
         const struct v4l2_frmsize_discrete *sz = v4l2_find_nearest_size(
             vcam_sizes, n_avail, width, height, vcam_sizes[n_avail - 1].width,
@@ -186,7 +187,19 @@ static int vcam_try_fmt_vid_cap(struct file *file,
         }
         dev->output_format.sizeimage =
             dev->output_format.bytesperline * dev->output_format.height;
+
+        /* resize the videobuffer */
         vcam_update_format_cap(dev, false);
+
+        /* resize the framebuffer */
+        destroy_framebuffer((const char *) dev->vcam_fb_fname);
+        snprintf(dev->vcam_fb_fname, sizeof(dev->vcam_fb_fname), "vcamfb%d",
+                 MINOR(dev->vdev.dev.devt) + 1);
+        new_pde = init_framebuffer((const char *) dev->vcam_fb_fname, dev);
+        if (!new_pde)
+            destroy_framebuffer((const char *) dev->vcam_fb_fname);
+        dev->vcam_fb_procf = new_pde;
+        dev->fb_isopen = 0;
     }
 
     if (dev->conv_crop_on) {
